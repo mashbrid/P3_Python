@@ -44,55 +44,44 @@ BLINK_ON_DURATION = 0.05
 BLINK_OFF_DURATION = 5
 LAST_BLINK_TIME = -1
 
+step_now = 1  # initialize variable
+
 # Load variables from NVM
 fsr_on = microcontroller.nvm[0] == 1
 print("fsr_0n:", (fsr_on))
-time.sleep(.1)
 step1 = (microcontroller.nvm[1] << 8) | microcontroller.nvm[2]
-print("step1:", (step1))
+# step1 = 11000
+# microcontroller.nvm[1] = (step1 >> 8) & 0xFF  # High byte of step1
+# microcontroller.nvm[2] = step1 & 0xFF  # Low byte of step1print("step1:", (step1))
 time.sleep(.1)
 step10 = (microcontroller.nvm[3] << 8) | microcontroller.nvm[4]
 print("step10:", (step10))
-time.sleep(.1)
 haptic2 = microcontroller.nvm[5]
 print("haptic2:", (haptic2))
-time.sleep(.1)
 haptic3 = microcontroller.nvm[6]
 print("haptic3:", (haptic3))
-time.sleep(.1)
 haptic4 = microcontroller.nvm[7]
 print("haptic4:", (haptic4))
-time.sleep(.1)
 haptic5 = microcontroller.nvm[8]
 print("haptic5:", (haptic5))
-time.sleep(.1)
 haptic6 = microcontroller.nvm[9]
 print("haptic6:", (haptic6))
-time.sleep(.1)
 haptic7 = microcontroller.nvm[10]
 print("haptic7:", (haptic7))
-time.sleep(.1)
 haptic8 = microcontroller.nvm[11]
 print("haptic8:", (haptic8))
-time.sleep(.1)
 haptic9 = microcontroller.nvm[12]
 print("haptic9:", (haptic9))
-time.sleep(.1)
 haptic10 = microcontroller.nvm[13]
 print("haptic10:", (haptic10))
-time.sleep(.1)
 xangle_on = microcontroller.nvm[14] == 1
 print("xangle_on:", (xangle_on))
-time.sleep(.1)
 xangle = microcontroller.nvm[15] * -1
 print("xangle:", (xangle))
-time.sleep(.1)
 xhaptic = microcontroller.nvm[16]
 print("xhaptic:", (xhaptic))
-time.sleep(.1)
 xtime = microcontroller.nvm[17] * .1
 print("xtime:", (xtime))
-time.sleep(.1)
 
 # Variables to track X state
 x_negative_start_time = None  # Timestamp when X becomes negative
@@ -166,46 +155,57 @@ def check_xangle():
 
 def check_step():
     time.sleep(0.05)
-    global flashcounter
-    if ((get_voltage(fsr_in))) <= step1:  # step1 always off
-        print("step 1:", (get_voltage(fsr_in)))
+    global flashcounter, step_now
+    fsr_value = get_voltage(fsr_in)
+    if fsr_value <= step1:  # step1 always off
+        step_now = 1
+        print(f"Step {step_now}: {get_voltage(fsr_in)}")
         motor_pwm.duty_cycle = 0  # Haptic off
         flashcounter = flashcounter + 1  # increment flashcounter
-    if ((get_voltage(fsr_in))) > step1 and ((get_voltage(fsr_in))) <= step2:  # step2
-        print("step 2:", (get_voltage(fsr_in)))
+    if fsr_value > step1 and fsr_value <= step2:  # step2
+        step_now = 2
+        print(f"Step {step_now}: {get_voltage(fsr_in)}")
         motor_pwm.duty_cycle = int(haptic2 * 65535 / 100)
         flashcounter = 1
-    if ((get_voltage(fsr_in))) > step2 and ((get_voltage(fsr_in))) <= step3:  # step3
-        print("step 3:", (get_voltage(fsr_in)))
+    if fsr_value > step2 and fsr_value <= step3:  # step3
+        step_now = 3
+        print(f"Step {step_now}: {get_voltage(fsr_in)}")
         motor_pwm.duty_cycle = haptic3
         flashcounter = 1
-    if ((get_voltage(fsr_in))) > step3 and ((get_voltage(fsr_in))) <= step4:  # step4
-        print("step 4:", (get_voltage(fsr_in)))
+    if fsr_value > step3 and fsr_value <= step4:  # step4
+        step_now = 4
+        print(f"Step {step_now}: {get_voltage(fsr_in)}")
         motor_pwm.duty_cycle = int(haptic4 * 65535 / 100)
         flashcounter = 1
-    if ((get_voltage(fsr_in))) > step4 and ((get_voltage(fsr_in))) <= step5:  # step5
-        print("step 5:", (get_voltage(fsr_in)))
+    if fsr_value > step4 and fsr_value <= step5:  # step5
+        step_now = 5
+        print(f"Step {step_now}: {get_voltage(fsr_in)}")
         motor_pwm.duty_cycle = int(haptic5 * 65535 / 100)
         flashcounter = 1
-    if ((get_voltage(fsr_in))) > step5 and ((get_voltage(fsr_in))) <= step6:  # step6
-        print("step 6:", (get_voltage(fsr_in)))
+    if fsr_value > step5 and fsr_value <= step6:  # step6
+        step_now = 6
+        print(f"Step {step_now}: {get_voltage(fsr_in)}")
         motor_pwm.duty_cycle = int(haptic6 * 65535 / 100)
         flashcounter = 1
-    if ((get_voltage(fsr_in))) > step6 and ((get_voltage(fsr_in))) <= step7:  # step7
-        print("step 7:", (get_voltage(fsr_in)))
+    if fsr_value > step6 and fsr_value <= step7:  # step7
+        step_now = 7
+        print(f"Step {step_now}: {get_voltage(fsr_in)}")
         motor_pwm.duty_cycle = int(haptic7 * 65535 / 100)
         flashcounter = 1
-    if ((get_voltage(fsr_in))) > step7 and ((get_voltage(fsr_in))) <= step8:  # step8
-        print("step 8:", (get_voltage(fsr_in)))
+    if fsr_value > step7 and fsr_value <= step8:  # step8
+        step_now = 8
+        print(f"Step {step_now}: {get_voltage(fsr_in)}")
         motor_pwm.duty_cycle = int(haptic8 * 65535 / 100)
         flashcounter = 1
-    if ((get_voltage(fsr_in))) > step8 and ((get_voltage(fsr_in))) <= step9:  # step9
-        print("step 9:", (get_voltage(fsr_in)))
-        motor_pwm.duty_cycle = int(80 * 65535 / 100)  # 100% intensity
+    if fsr_value > step8 and fsr_value <= step9:  # step9
+        step_now = 9
+        print(f"Step {step_now}: {get_voltage(fsr_in)}")
+        motor_pwm.duty_cycle = int(haptic9 * 65535 / 100)  # 100% intensity
         flashcounter = 1
-    if ((get_voltage(fsr_in))) > step9:  # step10
-        print("step 10:", (get_voltage(fsr_in)))
-        motor_pwm.duty_cycle = int(100 * 65535 / 100)  # 100% intensity
+    if fsr_value > step9:  # step10
+        step_now = 10
+        print(f"Step {step_now}: {get_voltage(fsr_in)}")
+        motor_pwm.duty_cycle = int(haptic10 * 65535 / 100)  # 100% intensity
         flashcounter = 1
     if (flashcounter) > 3000:  # flash LED if sitting in step1
         ledgreen.value = False  # turns LED on
@@ -300,14 +300,13 @@ while True:
                 # Prepare data to send
                 fsr_message = f"FSR:{fsr_value}\n"
                 xangle_message = f"XANGLE:{xangle_value}\n"
+                step_message = f"STEP:{step_now}\n"  # Add step_now message
+                print(step_now)
 
                 # Send data over UART
                 uart.write(fsr_message)
                 uart.write(xangle_message)
-
-                # Debugging output
-                print(f"Sent: {fsr_message.strip()}")
-                print(f"Sent: {xangle_message.strip()}")
+                uart.write(step_message)
 
                 last_transmission = current_time
         time.sleep(0.05)  # Reduced sleep time for responsiveness
