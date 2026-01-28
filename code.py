@@ -50,9 +50,7 @@ step_now = 1  # initialize variable
 fsr_on = microcontroller.nvm[0] == 1
 print("fsr_0n:", (fsr_on))
 step1 = (microcontroller.nvm[1] << 8) | microcontroller.nvm[2]
-# step1 = 11000
-# microcontroller.nvm[1] = (step1 >> 8) & 0xFF  # High byte of step1
-# microcontroller.nvm[2] = step1 & 0xFF  # Low byte of step1print("step1:", (step1))
+print("step1:", (step1))
 time.sleep(.1)
 step10 = (microcontroller.nvm[3] << 8) | microcontroller.nvm[4]
 print("step10:", (step10))
@@ -76,8 +74,10 @@ haptic10 = microcontroller.nvm[13]
 print("haptic10:", (haptic10))
 xangle_on = microcontroller.nvm[14] == 1
 print("xangle_on:", (xangle_on))
+#  xangle is the angle when haptic is triggered (0 to 10)
 xangle = microcontroller.nvm[15] * -1
 print("xangle:", (xangle))
+#  xhaptic is the strength of the haptic (25, 50, 75, or 100)
 xhaptic = microcontroller.nvm[16]
 print("xhaptic:", (xhaptic))
 xtime = microcontroller.nvm[17] * .1
@@ -159,53 +159,71 @@ def check_step():
     fsr_value = get_voltage(fsr_in)
     if fsr_value <= step1:  # step1 always off
         step_now = 1
-        print(f"Step {step_now}: {get_voltage(fsr_in)}")
+        # print(f"Step {step_now}: {get_voltage(fsr_in)}")
         motor_pwm.duty_cycle = 0  # Haptic off
         flashcounter = flashcounter + 1  # increment flashcounter
     if fsr_value > step1 and fsr_value <= step2:  # step2
         step_now = 2
-        print(f"Step {step_now}: {get_voltage(fsr_in)}")
-        motor_pwm.duty_cycle = int(haptic2 * 65535 / 100)
+        if fsr_on:
+            motor_pwm.duty_cycle = int(haptic2 * 65535 / 100)
+        else:
+            motor_pwm.duty_cycle = 0
         flashcounter = 1
     if fsr_value > step2 and fsr_value <= step3:  # step3
         step_now = 3
-        print(f"Step {step_now}: {get_voltage(fsr_in)}")
-        motor_pwm.duty_cycle = haptic3
+        if fsr_on:
+            motor_pwm.duty_cycle = int(haptic3 * 65535 / 100)
+        else:
+            motor_pwm.duty_cycle = 0
         flashcounter = 1
     if fsr_value > step3 and fsr_value <= step4:  # step4
         step_now = 4
-        print(f"Step {step_now}: {get_voltage(fsr_in)}")
-        motor_pwm.duty_cycle = int(haptic4 * 65535 / 100)
+        if fsr_on:
+            motor_pwm.duty_cycle = int(haptic4 * 65535 / 100)
+        else:
+            motor_pwm.duty_cycle = 0
         flashcounter = 1
     if fsr_value > step4 and fsr_value <= step5:  # step5
         step_now = 5
-        print(f"Step {step_now}: {get_voltage(fsr_in)}")
-        motor_pwm.duty_cycle = int(haptic5 * 65535 / 100)
+        if fsr_on:
+            motor_pwm.duty_cycle = int(haptic5 * 65535 / 100)
+        else:
+            motor_pwm.duty_cycle = 0
         flashcounter = 1
     if fsr_value > step5 and fsr_value <= step6:  # step6
         step_now = 6
-        print(f"Step {step_now}: {get_voltage(fsr_in)}")
-        motor_pwm.duty_cycle = int(haptic6 * 65535 / 100)
+        if fsr_on:
+            motor_pwm.duty_cycle = int(haptic6 * 65535 / 100)
+        else:
+            motor_pwm.duty_cycle = 0
         flashcounter = 1
     if fsr_value > step6 and fsr_value <= step7:  # step7
         step_now = 7
-        print(f"Step {step_now}: {get_voltage(fsr_in)}")
-        motor_pwm.duty_cycle = int(haptic7 * 65535 / 100)
+        if fsr_on:
+            motor_pwm.duty_cycle = int(haptic7 * 65535 / 100)
+        else:
+            motor_pwm.duty_cycle = 0
         flashcounter = 1
     if fsr_value > step7 and fsr_value <= step8:  # step8
         step_now = 8
-        print(f"Step {step_now}: {get_voltage(fsr_in)}")
-        motor_pwm.duty_cycle = int(haptic8 * 65535 / 100)
+        if fsr_on:
+            motor_pwm.duty_cycle = int(haptic8 * 65535 / 100)
+        else:
+            motor_pwm.duty_cycle = 0
         flashcounter = 1
     if fsr_value > step8 and fsr_value <= step9:  # step9
         step_now = 9
-        print(f"Step {step_now}: {get_voltage(fsr_in)}")
-        motor_pwm.duty_cycle = int(haptic9 * 65535 / 100)  # 100% intensity
+        if fsr_on:
+            motor_pwm.duty_cycle = int(haptic9 * 65535 / 100)
+        else:
+            motor_pwm.duty_cycle = 0
         flashcounter = 1
     if fsr_value > step9:  # step10
         step_now = 10
-        print(f"Step {step_now}: {get_voltage(fsr_in)}")
-        motor_pwm.duty_cycle = int(haptic10 * 65535 / 100)  # 100% intensity
+        if fsr_on:
+            motor_pwm.duty_cycle = int(haptic10 * 65535 / 100)
+        else:
+            motor_pwm.duty_cycle = 0
         flashcounter = 1
     if (flashcounter) > 3000:  # flash LED if sitting in step1
         ledgreen.value = False  # turns LED on
@@ -219,8 +237,7 @@ while True:
         ble.start_advertising(advertisement)
         print("Advertising...")
         while not ble.connected:
-            if fsr_on:
-                check_step()
+            check_step()
             if xangle_on:
                 check_xangle()
             # show_xyz()
@@ -231,8 +248,7 @@ while True:
     last_transmission = time.monotonic()
 
     while ble.connected:
-        if fsr_on:
-            check_step()
+        check_step()
         if xangle_on:
             check_xangle()
         # Send initial status messages upon connection
@@ -279,6 +295,15 @@ while True:
                             else:
                                 response = "XANGLE DISABLED\n"
                             uart.write(response)
+                        elif command.startswith("SET_STEP2:"):
+                            try:
+                                # Extract the value from the command
+                                haptic_value = int(command.split(":")[1])
+                                haptic2 = haptic_value  # Update the step2 variable
+                                microcontroller.nvm[5] = (haptic2)
+                                uart.write(f"Step 2 set to {haptic2}\n")
+                            except ValueError:
+                                uart.write("ERROR: Invalid value for Step 2\n")
                         else:
                             uart.write("ERROR: Unknown command\n")
                     except UnicodeDecodeError:
@@ -301,7 +326,7 @@ while True:
                 fsr_message = f"FSR:{fsr_value}\n"
                 xangle_message = f"XANGLE:{xangle_value}\n"
                 step_message = f"STEP:{step_now}\n"  # Add step_now message
-                print(step_now)
+                # print(step_now)
 
                 # Send data over UART
                 uart.write(fsr_message)
