@@ -1,331 +1,251 @@
-import time
-import board
-import busio
-import pwmio
-import digitalio
-import microcontroller
-from analogio import AnalogIn
-from adafruit_lsm6ds.lsm6ds3trc import LSM6DS3TRC
-from adafruit_ble import BLERadio
-from adafruit_ble.advertising.standard import ProvideServicesAdvertisement
-from adafruit_ble.services.nordic import UARTService
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Paddle Controller</title>
 
-# -------------------------
-# SETUP FSR & HAPTIC
-# -------------------------
-fsr_in = AnalogIn(board.A3)
-motor_pwm = pwmio.PWMOut(board.D0, frequency=1000, duty_cycle=0)
+<style>
+body {
+  font-family: Arial;
+  text-align: center;
+  margin: 5px;
+}
+button {
+  width: 150px;
+  height: 30px;
+  font-size: 16px;
+  padding: 5px;
+  cursor: pointer;
+  border-radius: 5px;
+  color: white;
+  border: none;
+  background: #007bff;
+  margin-bottom: 4px;
+}
+button:hover { background: #0056b3; }
+button:disabled { background: #ccc; cursor: not-allowed; }
+/* Small buttons */
+.small-button {
+  width: 70px;
+  height: 30px;
+  font-size: 16px;
+  padding: 5px;
+  cursor: pointer;
+  border-radius: 5px;
+  color: white;
+  border: none;
+  background: #007bff;
+  margin-bottom: 4px;
+}
+.columns { display: flex; justify-content: center; gap: 20px; margin-top: 5px; }
+.column { display: flex; flex-direction: column; align-items: center; }
+.header-container h1 { margin: 5px 0; font-size: 1.5em; }
+.header-container { display: flex; flex-direction: column; align-items: center; gap: 5px; }
+/* ---- SLIDERS ---- */
+.slider-container { display: flex; justify-content: center; gap: 40px; margin-top: 10px; }
+.slider-column { display: flex; flex-direction: column; gap: 20px; align-items: center; }
+.slider-box { display: flex; flex-direction: column; align-items: center; width: 120px; }
+input[type="range"] { writing-mode: bt-lr; -webkit-appearance: slider-vertical; width: 40px; height: 120px; }
+.slider-inner { display: flex; align-items: center; gap: 1px; }
+.slider-current-value { min-width: 35px; font-weight: bold; text-align: right; }
+/* Set Min/Max buttons row */
+.button-row { display: flex; gap: 10px; margin-top: 1px; }
+.button-row button { flex: 0 0 auto; }
+</style>
+</head>
 
-# -------------------------
-# SETUP ACCELEROMETER
-# -------------------------
-imupwr = digitalio.DigitalInOut(board.IMU_PWR)
-imupwr.direction = digitalio.Direction.OUTPUT
-imupwr.value = True
-time.sleep(0.1)
-imu_i2c = busio.I2C(board.IMU_SCL, board.IMU_SDA)
-sensor = LSM6DS3TRC(imu_i2c)
+<body>
 
-# -------------------------
-# BLE RADIO
-# -------------------------
-ble = BLERadio()
-uart = UARTService()
-advertisement = ProvideServicesAdvertisement(uart)
-ble.name = "Paddle003"
+<div class="header-container">
+  <h1>Paddle Controller</h1>
+  <button id="connect-btn">Connect</button>
+</div>
 
-# -------------------------
-# ONBOARD LEDS
-# -------------------------
-ledred = digitalio.DigitalInOut(board.LED_RED)
-ledred.direction = digitalio.Direction.OUTPUT
-ledred.value = True
+<div class="columns">
+  <div class="column">
+    <button id="fsr-btn" disabled>Grip Unk</button>
+    <div id="fsr-value">FSR: -- Step: --</div>
+  </div>
+  <div class="column">
+    <button id="xangle-btn" disabled>Angle Unk</button>
+    <div id="xangle-value">X Angle: --</div>
+  </div>
+</div>
 
-ledblue = digitalio.DigitalInOut(board.LED_BLUE)
-ledblue.direction = digitalio.Direction.OUTPUT
-ledblue.value = True
+<div class="slider-container">
+  <div class="slider-column">
+    <div class="slider-box">
+      <label for="grip-start-slider">HAPTIC START</label>
+      <div class="slider-inner">
+        <div class="slider-current-value" id="grip-start-current">4</div>
+        <input type="range" id="grip-start-slider" min="2" max="10" step="1" value="4">
+      </div>
+    </div>
 
-ledgreen = digitalio.DigitalInOut(board.LED_GREEN)
-ledgreen.direction = digitalio.Direction.OUTPUT
-ledgreen.value = True
+    <div class="slider-box">
+      <label for="haptic-start-pct">HAPTIC %</label>
+      <div class="slider-inner">
+        <div class="slider-current-value" id="haptic-start-current">50</div>
+        <input type="range" id="haptic-start-pct" min="0" max="100" step="1" value="50">
+      </div>
+    </div>
 
-BLINK_ON_DURATION = 0.05
-BLINK_OFF_DURATION = 5
-LAST_BLINK_TIME = -1
+    <div class="button-row">
+       <button id="set-min-btn" class="small-button">Set Min</button>
+       <button id="set-max-btn" class="small-button">Set Max</button>
+    </div>
+  </div>
 
-step_now = 1  # initialize step
+  <div class="slider-column">
+    <div class="slider-box">
+      <label for="angle-threshold">ANGLE</label>
+      <div class="slider-inner">
+        <div class="slider-current-value" id="angle-threshold-current">3</div>
+        <input type="range" id="angle-threshold" min="-10" max="10" step="1" value="3">
+      </div>
+    </div>
 
-# -------------------------
-# LOAD VARIABLES FROM NVM
-# -------------------------
-fsr_on = microcontroller.nvm[0] == 1
-print("fsr_on:", fsr_on)
+    <div class="slider-box">
+      <label for="angle-delay">ANGLE DELAY</label>
+      <div class="slider-inner">
+        <div class="slider-current-value" id="angle-delay-current">0.8</div>
+        <input type="range" id="angle-delay" min="0" max="5" step="0.1" value="0.8">
+      </div>
+    </div>
+  </div>
+</div>
 
-step1 = (microcontroller.nvm[1] << 8) | microcontroller.nvm[2]
-step10 = (microcontroller.nvm[3] << 8) | microcontroller.nvm[4]
+<script>
+let device, server, uartService, txCharacteristic, rxCharacteristic;
+let isConnected = false;
 
-haptic2 = microcontroller.nvm[5]
-haptic3 = microcontroller.nvm[6]
-haptic4 = microcontroller.nvm[7]
-haptic5 = microcontroller.nvm[8]
-haptic6 = microcontroller.nvm[9]
-haptic7 = microcontroller.nvm[10]
-haptic8 = microcontroller.nvm[11]
-haptic9 = microcontroller.nvm[12]
-haptic10 = microcontroller.nvm[13]
+let currentFSR = '--';
+let currentStep = '--';
 
-xangle_on = microcontroller.nvm[14] == 1
-xangle = microcontroller.nvm[15] * -1
-xhaptic = microcontroller.nvm[16]
-xtime = microcontroller.nvm[17] * 0.1
+const connectBtn = document.getElementById('connect-btn');
+const fsrBtn = document.getElementById('fsr-btn');
+const fsrValue = document.getElementById('fsr-value');
+const xangleBtn = document.getElementById('xangle-btn');
+const xangleValue = document.getElementById('xangle-value');
 
-# Print NVM values for debugging
-print("step1:", step1)
-print("step10:", step10)
-print("haptic2:", haptic2)
-print("haptic3:", haptic3)
-print("haptic4:", haptic4)
-print("haptic5:", haptic5)
-print("haptic6:", haptic6)
-print("haptic7:", haptic7)
-print("haptic8:", haptic8)
-print("haptic9:", haptic9)
-print("haptic10:", haptic10)
-print("xangle_on:", xangle_on)
-print("xangle:", xangle)
-print("xhaptic:", xhaptic)
-print("xtime:", xtime)
+const SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+const TX_CHAR_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+const RX_CHAR_UUID = '6e400003-b5a3-f393-e0a9-e50e24dcca9e';
 
-# -------------------------
-# CALCULATE FSR STEPS
-# -------------------------
-fsr_increment = (step10 - step1) / 9
-step2 = step1 + fsr_increment
-step3 = step2 + fsr_increment
-step4 = step3 + fsr_increment
-step5 = step4 + fsr_increment
-step6 = step5 + fsr_increment
-step7 = step6 + fsr_increment
-step8 = step7 + fsr_increment
-step9 = step8 + fsr_increment
+// Connect/Disconnect
+connectBtn.addEventListener('click', async () => {
+  if (!isConnected) {
+    try {
+      device = await navigator.bluetooth.requestDevice({ filters: [{ services: [SERVICE_UUID] }] });
+      server = await device.gatt.connect();
+      uartService = await server.getPrimaryService(SERVICE_UUID);
+      txCharacteristic = await uartService.getCharacteristic(TX_CHAR_UUID);
+      rxCharacteristic = await uartService.getCharacteristic(RX_CHAR_UUID);
+      await rxCharacteristic.startNotifications();
+      rxCharacteristic.addEventListener('characteristicvaluechanged', handleNotifications);
+      isConnected = true;
+      connectBtn.textContent = 'Disconnect';
+      fsrBtn.disabled = false;
+      xangleBtn.disabled = false;
+      sendCommand('GET_FSR\n');
+      sendCommand('GET_XANGLE\n');
+    } catch (err) {
+      console.error(err);
+      alert('Failed to connect');
+    }
+  } else {
+    if (device?.gatt?.connected) device.gatt.disconnect();
+    isConnected = false;
+    connectBtn.textContent = 'Connect';
+    fsrBtn.disabled = true;
+    xangleBtn.disabled = true;
+    fsrValue.textContent = 'FSR: -- Step: --';
+    xangleValue.textContent = 'X Angle: --';
+  }
+});
 
-# -------------------------
-# DOUBLE BUZZ & GREEN LED STARTUP
-# -------------------------
-for _ in range(2):
-    ledgreen.value = False
-    motor_pwm.duty_cycle = int(10 * 65535 / 100)
-    time.sleep(0.2)
-    ledgreen.value = True
-    motor_pwm.duty_cycle = 0
-    time.sleep(0.2)
+// TOGGLES
+fsrBtn.addEventListener('click', () => sendCommand('TOGGLE_FSR\n'));
+xangleBtn.addEventListener('click', () => sendCommand('TOGGLE_XANGLE\n'));
 
-# -------------------------
-# HELPER FUNCTIONS
-# -------------------------
-def get_voltage(pin):
-    return pin.value
+function sendCommand(cmd) {
+  if (isConnected && txCharacteristic) {
+    txCharacteristic.writeValue(new TextEncoder().encode(cmd)).catch(console.error);
+  }
+}
 
-x_negative_start_time = None
-def check_xangle():
-    global x_negative_start_time
-    x, y, z = sensor.acceleration
-    if x < xangle:
-        if x_negative_start_time is None:
-            x_negative_start_time = time.monotonic()
-        elif time.monotonic() - x_negative_start_time >= xtime:
-            for _ in range(3):
-                motor_pwm.duty_cycle = int(xhaptic * 65535 / 100)
-                time.sleep(0.08)
-                motor_pwm.duty_cycle = 0
-                time.sleep(0.08)
-            x_negative_start_time = None
-    else:
-        x_negative_start_time = None
+// BLE RX HANDLER
+function handleNotifications(event) {
+  const msg = new TextDecoder().decode(event.target.value).trim();
+  console.log('RX:', msg);
 
-flashcounter = 1
-def check_step():
-    global flashcounter, step_now
+  if (msg.includes('FSR ENABLED')) fsrBtn.textContent = 'Turn Grip Off';
+  else if (msg.includes('FSR DISABLED')) fsrBtn.textContent = 'Turn Grip On';
+  else if (msg.startsWith('STEP:')) {
+    currentStep = parseInt(msg.split(':')[1].trim());
+    fsrValue.textContent = `FSR: ${currentFSR} Step: ${currentStep}`;
+  } 
+  else if (msg.startsWith('STEP1:')) {
+    currentStep = parseInt(msg.split(':')[1].trim());
+    fsrValue.textContent = `FSR: ${currentFSR} Step: ${currentStep}`;
+    // Re-enable Min button
+    if (setMinBtn.disabled) {
+      setMinBtn.disabled = false;
+      setMinBtn.style.background = '#007bff';
+    }
+  }
+  else if (msg.startsWith('FSR:')) {
+    const fsrVal = parseInt(msg.split(':')[1].trim());
+    if (!isNaN(currentStep) && fsrVal < 2 * currentStep) {
+      console.log('FSR value ignored: below 2x Step1');
+    } else {
+      currentFSR = fsrVal;
+      fsrValue.textContent = `FSR: ${currentFSR} Step: ${currentStep}`;
+    }
+    // Always re-enable Max button
+    if (setMaxBtn.disabled) {
+      setMaxBtn.disabled = false;
+      setMaxBtn.style.background = '#007bff';
+    }
+  }
+  else if (msg.includes('XANGLE ENABLED')) xangleBtn.textContent = 'Turn Angle Off';
+  else if (msg.includes('XANGLE DISABLED')) xangleBtn.textContent = 'Turn Angle On';
+  else if (msg.startsWith('XANGLE:')) xangleValue.textContent = `X Angle: ${msg.split(':')[1].trim()}`;
+}
 
-    fsr_value = get_voltage(fsr_in)  # always read FSR
-    
-    if not fsr_on:
-        motor_pwm.duty_cycle = 0
-        
-    if fsr_value <= step1:
-        step_now = 1
-        if fsr_on:
-            motor_pwm.duty_cycle = 0
-        flashcounter += 1
-    elif fsr_value <= step2:
-        step_now = 2
-        if fsr_on:
-            motor_pwm.duty_cycle = int(haptic2 * 65535 / 100)
-        flashcounter = 1
-    elif fsr_value <= step3:
-        step_now = 3
-        if fsr_on:
-            motor_pwm.duty_cycle = int(haptic3 * 65535 / 100)
-        flashcounter = 1
-    elif fsr_value <= step4:
-        step_now = 4
-        if fsr_on:
-            motor_pwm.duty_cycle = int(haptic4 * 65535 / 100)
-        flashcounter = 1
-    elif fsr_value <= step5:
-        step_now = 5
-        if fsr_on:
-            motor_pwm.duty_cycle = int(haptic5 * 65535 / 100)
-        flashcounter = 1
-    elif fsr_value <= step6:
-        step_now = 6
-        if fsr_on:
-            motor_pwm.duty_cycle = int(haptic6 * 65535 / 100)
-        flashcounter = 1
-    elif fsr_value <= step7:
-        step_now = 7
-        if fsr_on:
-            motor_pwm.duty_cycle = int(haptic7 * 65535 / 100)
-        flashcounter = 1
-    elif fsr_value <= step8:
-        step_now = 8
-        if fsr_on:
-            motor_pwm.duty_cycle = int(haptic8 * 65535 / 100)
-        flashcounter = 1
-    elif fsr_value <= step9:
-        step_now = 9
-        if fsr_on:
-            motor_pwm.duty_cycle = int(haptic9 * 65535 / 100)
-        flashcounter = 1
-    else:
-        step_now = 10
-        if fsr_on:
-            motor_pwm.duty_cycle = int(haptic10 * 65535 / 100)
-        flashcounter = 1
+// -------------------------
+// MIN/MAX BUTTONS
+// -------------------------
+const setMinBtn = document.getElementById('set-min-btn');
+const setMaxBtn = document.getElementById('set-max-btn');
 
-    if flashcounter > 3000:
-        ledgreen.value = False
-        time.sleep(0.1)
-        ledgreen.value = True
-        flashcounter = 1
+setMinBtn.addEventListener('click', () => {
+  if (!isConnected) return;
+  setMinBtn.disabled = true;
+  setMinBtn.style.background = '#ccc';
+  sendCommand('SET_MIN\n');
+});
 
-# -------------------------
-# TURN ON STEP FOR APP
-# -------------------------
-def get_turn_on_step():
-    if haptic2 > 0: return 2
-    if haptic3 > 0: return 3
-    if haptic4 > 0: return 4
-    if haptic5 > 0: return 5
-    if haptic6 > 0: return 6
-    if haptic7 > 0: return 7
-    if haptic8 > 0: return 8
-    if haptic9 > 0: return 9
-    if haptic10 > 0: return 10
-    return 0
+setMaxBtn.addEventListener('click', () => {
+  if (!isConnected) return;
+  setMaxBtn.disabled = true;
+  setMaxBtn.style.background = '#ccc';
+  sendCommand('SET_MAX\n');
+});
 
-# -------------------------
-# MAIN LOOP
-# -------------------------
-while True:
-    if not ble.connected:
-        ble.start_advertising(advertisement)
-        print("Advertising...")
-        while not ble.connected:
-            check_step()
-            if xangle_on:
-                check_xangle()
-            time.sleep(0.05)
-        ble.stop_advertising()
-        print("Connected!")
+// SLIDER DISPLAY
+[
+  ['grip-start-slider','grip-start-current'],
+  ['haptic-start-pct','haptic-start-current'],
+  ['angle-threshold','angle-threshold-current'],
+  ['angle-delay','angle-delay-current']
+].forEach(([sliderId, displayId]) => {
+  const slider = document.getElementById(sliderId);
+  const display = document.getElementById(displayId);
+  slider.addEventListener('input', () => display.textContent = slider.value);
+});
+</script>
 
-    last_transmission = time.monotonic()
-
-    while ble.connected:
-        check_step()
-        if xangle_on:
-            check_xangle()
-        # Send initial status messages upon connection
-        uart.write("FSR ENABLED\n" if fsr_on else "FSR DISABLED\n")
-        uart.write("XANGLE ENABLED\n" if xangle_on else "XANGLE DISABLED\n")
-
-        time.sleep(0.05)
-        # Check if there is any data waiting to be read
-        if uart.in_waiting:
-            print(f"Data waiting: {uart.in_waiting} bytes")
-            try:
-                # Read all available data
-                data = uart.read(uart.in_waiting)
-                if data is not None:
-                    # Decode the data (utf-8)
-                    try:
-                        command = data.decode('utf-8').strip()
-                        # Handle commands
-                        if command == "TOGGLE_FSR":
-                            fsr_on = not fsr_on
-                            microcontroller.nvm[0] = 1 if fsr_on else 0  # Save to NVM
-                            response = "FSR ENABLED\n" if fsr_on else "FSR DISABLED\n"
-                            uart.write(response)
-                        elif command == "TOGGLE_XANGLE":
-                            xangle_on = not xangle_on
-                            if xangle_on:
-                                microcontroller.nvm[14] = 1  # Save to NVM
-                            else:
-                                microcontroller.nvm[14] = 0  # Save to NVM
-                            if xangle_on:
-                                response = "XANGLE ENABLED\n"
-                            else:
-                                response = "XANGLE DISABLED\n"
-                            uart.write(response)
-                        elif command == "GET_FSR":
-                            if fsr_on:
-                                response = "FSR ENABLED\n"
-                            else:
-                                response = "FSR DISABLED\n"
-                            uart.write(response)
-                        elif command == "GET_XANGLE":
-                            if xangle_on:
-                                response = "XANGLE ENABLED\n"
-                            else:
-                                response = "XANGLE DISABLED\n"
-                            uart.write(response)
-                        elif command.startswith("SET_STEP2:"):
-                            try:
-                                # Extract the value from the command
-                                haptic_value = int(command.split(":")[1])
-                                haptic2 = haptic_value  # Update the step2 variable
-                                microcontroller.nvm[5] = (haptic2)
-                                uart.write(f"Step 2 set to {haptic2}\n")
-                            except ValueError:
-                                uart.write("ERROR: Invalid value for Step 2\n")
-                        else:
-                            uart.write("ERROR: Unknown command\n")
-                    except UnicodeDecodeError:
-                        uart.write("ERROR: Invalid command format\n")
-                else:
-                    print("No data received (None).")
-            except Exception as e:
-                print(f"Error: {e}")
-                uart.write("ERROR: Something went wrong processing the data\n")
-        else:
-            # Periodically send FSR and xangle values
-            current_time = time.monotonic()
-            if current_time - last_transmission >= .01:  # Send every second
-                # Read FSR and xangle values
-                fsr_value = get_voltage(fsr_in)
-                x, _, _ = sensor.acceleration
-                xangle_value = round(x, 2)
-
-                # Prepare data to send
-                fsr_message = f"FSR:{fsr_value}\n"
-                xangle_message = f"XANGLE:{xangle_value}\n"
-                step_message = f"STEP:{step_now}\n"  # Add step_now message
-                # print(step_now)
-
-                # Send data over UART
-                uart.write(fsr_message)
-                uart.write(xangle_message)
-                uart.write(step_message)
-
-                last_transmission = current_time
-        time.sleep(0.05)  # Reduced sleep time for responsiveness
+</body>
+</html>
