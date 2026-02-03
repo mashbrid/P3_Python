@@ -323,25 +323,9 @@ def set_max_from_fsr():
     uart.write(f"STEP10:{step10}\n")
 
 # -------------------------
-# TURN ON STEP FOR APP
-# -------------------------
-def get_turn_on_step():
-    if haptic2 > 0: return 2
-    if haptic3 > 0: return 3
-    if haptic4 > 0: return 4
-    if haptic5 > 0: return 5
-    if haptic6 > 0: return 6
-    if haptic7 > 0: return 7
-    if haptic8 > 0: return 8
-    if haptic9 > 0: return 9
-    if haptic10 > 0: return 10
-    return 0
-
-# -------------------------
 # MAIN LOOP
 # -------------------------
 last_transmission = time.monotonic()
-last_hstart_sent = None
 
 while True:
     if not ble.connected:
@@ -352,10 +336,17 @@ while True:
             if xangle_on:
                 check_xangle()
             time.sleep(0.05)
+
         ble.stop_advertising()
         print("Connected!")
-        uart.write(f"HSTART:{hstart}\n")  # initial sync on connect
-        last_hstart_sent = hstart
+
+        # Tiny pause to ensure BLE is fully ready on both sides
+        time.sleep(0.1)
+
+        # AUTHORITATIVE SYNC — paddle → app
+        uart.write(f"HSTART:{hstart}\n")
+        uart.write(f"STEP1:{step1}\n")
+        uart.write(f"STEP10:{step10}\n")
 
     while ble.connected:
         check_step()
@@ -363,8 +354,6 @@ while True:
             check_xangle()
 
         current_time = time.monotonic()
-
-        # Send periodic status updates only if value changed or first time
         if current_time - last_transmission >= 0.01:
             fsr_value = get_voltage(fsr_in)
             x, _, _ = sensor.acceleration
@@ -380,6 +369,10 @@ while True:
                 if data:
                     try:
                         command = data.decode('utf-8').strip()
+
+                        # -------------------------
+                        # TOGGLE COMMANDS
+                        # -------------------------
                         if command == "TOGGLE_FSR":
                             fsr_on = not fsr_on
                             microcontroller.nvm[0] = 1 if fsr_on else 0
@@ -392,22 +385,77 @@ while True:
                             uart.write("FSR ENABLED\n" if fsr_on else "FSR DISABLED\n")
                         elif command == "GET_XANGLE":
                             uart.write("XANGLE ENABLED\n" if xangle_on else "XANGLE DISABLED\n")
+
+                        # -------------------------
+                        # SET STEP2 – STEP10 COMMANDS
+                        # -------------------------
                         elif command.startswith("SET_STEP2:"):
                             try:
-                                haptic_value = int(command.split(":")[1])
-                                haptic2 = haptic_value
+                                haptic2 = int(command.split(":")[1])
                                 microcontroller.nvm[5] = haptic2
                                 uart.write(f"Step 2 set to {haptic2}\n")
                             except ValueError:
                                 uart.write("ERROR: Invalid value for Step 2\n")
                         elif command.startswith("SET_STEP3:"):
                             try:
-                                haptic_value = int(command.split(":")[1])
-                                haptic3 = haptic_value
+                                haptic3 = int(command.split(":")[1])
                                 microcontroller.nvm[6] = haptic3
                                 uart.write(f"Step 3 set to {haptic3}\n")
                             except ValueError:
                                 uart.write("ERROR: Invalid value for Step 3\n")
+                        elif command.startswith("SET_STEP4:"):
+                            try:
+                                haptic4 = int(command.split(":")[1])
+                                microcontroller.nvm[7] = haptic4
+                                uart.write(f"Step 4 set to {haptic4}\n")
+                            except ValueError:
+                                uart.write("ERROR: Invalid value for Step 4\n")
+                        elif command.startswith("SET_STEP5:"):
+                            try:
+                                haptic5 = int(command.split(":")[1])
+                                microcontroller.nvm[8] = haptic5
+                                uart.write(f"Step 5 set to {haptic5}\n")
+                            except ValueError:
+                                uart.write("ERROR: Invalid value for Step 5\n")
+                        elif command.startswith("SET_STEP6:"):
+                            try:
+                                haptic6 = int(command.split(":")[1])
+                                microcontroller.nvm[9] = haptic6
+                                uart.write(f"Step 6 set to {haptic6}\n")
+                            except ValueError:
+                                uart.write("ERROR: Invalid value for Step 6\n")
+                        elif command.startswith("SET_STEP7:"):
+                            try:
+                                haptic7 = int(command.split(":")[1])
+                                microcontroller.nvm[10] = haptic7
+                                uart.write(f"Step 7 set to {haptic7}\n")
+                            except ValueError:
+                                uart.write("ERROR: Invalid value for Step 7\n")
+                        elif command.startswith("SET_STEP8:"):
+                            try:
+                                haptic8 = int(command.split(":")[1])
+                                microcontroller.nvm[11] = haptic8
+                                uart.write(f"Step 8 set to {haptic8}\n")
+                            except ValueError:
+                                uart.write("ERROR: Invalid value for Step 8\n")
+                        elif command.startswith("SET_STEP9:"):
+                            try:
+                                haptic9 = int(command.split(":")[1])
+                                microcontroller.nvm[12] = haptic9
+                                uart.write(f"Step 9 set to {haptic9}\n")
+                            except ValueError:
+                                uart.write("ERROR: Invalid value for Step 9\n")
+                        elif command.startswith("SET_STEP10:"):
+                            try:
+                                haptic10 = int(command.split(":")[1])
+                                microcontroller.nvm[13] = haptic10
+                                uart.write(f"Step 10 set to {haptic10}\n")
+                            except ValueError:
+                                uart.write("ERROR: Invalid value for Step 10\n")
+
+                        # -------------------------
+                        # SET MIN/MAX & HSTART
+                        # -------------------------
                         elif command == "SET_MIN":
                             uart.write("SET_MIN START\n")
                             set_min_from_fsr()
@@ -420,7 +468,7 @@ while True:
                                 if 2 <= new_hstart <= 10:
                                     hstart = new_hstart
                                     microcontroller.nvm[18] = hstart
-                                    uart.write(f"HSTART:{hstart}\n")
+                                    uart.write(f"HSTART:{hstart}\n")  # echo back
                                 else:
                                     uart.write("ERROR: HSTART out of range\n")
                             except ValueError:
@@ -429,6 +477,7 @@ while True:
                             uart.write(f"HSTART:{hstart}\n")
                         else:
                             uart.write("ERROR: Unknown command\n")
+
                     except UnicodeDecodeError:
                         uart.write("ERROR: Invalid command format\n")
             except Exception as e:
