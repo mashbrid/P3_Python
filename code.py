@@ -56,7 +56,12 @@ ledgreen = digitalio.DigitalInOut(board.LED_GREEN)
 ledgreen.direction = digitalio.Direction.OUTPUT
 ledgreen.value = True
 
+# -------------------------
+# STATE
+# -------------------------
 step_now = 1
+telemetry_paused = False
+
 # -------------------------
 # LOAD VARIABLES FROM NVM
 # -------------------------
@@ -77,8 +82,9 @@ xangle = microcontroller.nvm[15] * -1
 xhaptic = microcontroller.nvm[16]
 xtime = microcontroller.nvm[17] * 0.1
 hstart = int(microcontroller.nvm[18])
+
 # -------------------------
-# STARTUP DEBUG PRINTS
+# STARTUP DEBUG PRINTS (DO NOT TOUCH)
 # -------------------------
 print("fsr_on:", fsr_on)
 print("step1:", step1)
@@ -98,6 +104,7 @@ print("xangle:", xangle)
 print("xhaptic:", xhaptic)
 print("xtime:", xtime)
 print("hstart:", hstart)
+
 # -------------------------
 # CALCULATE FSR STEPS
 # -------------------------
@@ -110,18 +117,20 @@ step6 = step5 + fsr_increment
 step7 = step6 + fsr_increment
 step8 = step7 + fsr_increment
 step9 = step8 + fsr_increment
+
 # -------------------------
 # DOUBLE HAPTIC & GREEN LED STARTUP CONFIRMATION
 # -------------------------
 for _ in range(2):
     ledgreen.value = False
-    motor_pwm.duty_cycle = int(10 * 65535 / 100)  # 10% haptic pulse
+    motor_pwm.duty_cycle = int(10 * 65535 / 100)
     time.sleep(0.1)
     ledgreen.value = True
     motor_pwm.duty_cycle = 0
     time.sleep(0.2)
+
 # -------------------------
-# HELPER FUNCTIONS
+# HELPERS
 # -------------------------
 def get_voltage(pin):
     return pin.value
@@ -144,10 +153,8 @@ def check_xangle():
     else:
         x_negative_start_time = None
 
-flashcounter = 1
-
 def check_step():
-    global flashcounter, step_now
+    global step_now
     fsr_value = get_voltage(fsr_in)
 
     if not fsr_on:
@@ -156,43 +163,88 @@ def check_step():
     if fsr_value <= step1:
         step_now = 1
         motor_pwm.duty_cycle = 0
-        flashcounter += 1
     elif fsr_value <= step2:
         step_now = 2
         motor_pwm.duty_cycle = int(haptic2 * 65535 / 100) if fsr_on and step_now >= hstart else 0
-        flashcounter = 1
     elif fsr_value <= step3:
         step_now = 3
         motor_pwm.duty_cycle = int(haptic3 * 65535 / 100) if fsr_on and step_now >= hstart else 0
-        flashcounter = 1
     elif fsr_value <= step4:
         step_now = 4
         motor_pwm.duty_cycle = int(haptic4 * 65535 / 100) if fsr_on and step_now >= hstart else 0
-        flashcounter = 1
     elif fsr_value <= step5:
         step_now = 5
         motor_pwm.duty_cycle = int(haptic5 * 65535 / 100) if fsr_on and step_now >= hstart else 0
-        flashcounter = 1
     elif fsr_value <= step6:
         step_now = 6
         motor_pwm.duty_cycle = int(haptic6 * 65535 / 100) if fsr_on and step_now >= hstart else 0
-        flashcounter = 1
     elif fsr_value <= step7:
         step_now = 7
         motor_pwm.duty_cycle = int(haptic7 * 65535 / 100) if fsr_on and step_now >= hstart else 0
-        flashcounter = 1
     elif fsr_value <= step8:
         step_now = 8
         motor_pwm.duty_cycle = int(haptic8 * 65535 / 100) if fsr_on and step_now >= hstart else 0
-        flashcounter = 1
     elif fsr_value <= step9:
         step_now = 9
         motor_pwm.duty_cycle = int(haptic9 * 65535 / 100) if fsr_on and step_now >= hstart else 0
-        flashcounter = 1
     else:
         step_now = 10
         motor_pwm.duty_cycle = int(haptic10 * 65535 / 100) if fsr_on and step_now >= hstart else 0
-        flashcounter = 1
+
+# -------------------------
+# SET FUNCTIONS
+# -------------------------
+def set_min_from_fsr():
+    global step1, step2, step3, step4, step5
+    global step6, step7, step8, step9, step10
+    global fsr_increment
+    start = time.monotonic()
+    max_fsr = 0
+    while time.monotonic() - start < SET_MIN_WINDOW:
+        max_fsr = max(max_fsr, get_voltage(fsr_in))
+        time.sleep(0.01)
+
+    step1 = int(max_fsr * SET_MIN_BUFFER)
+    microcontroller.nvm[1] = (step1 >> 8) & 0xFF
+    microcontroller.nvm[2] = step1 & 0xFF
+
+    fsr_increment = (step10 - step1) / 9
+    step2 = step1 + fsr_increment
+    step3 = step2 + fsr_increment
+    step4 = step3 + fsr_increment
+    step5 = step4 + fsr_increment
+    step6 = step5 + fsr_increment
+    step7 = step6 + fsr_increment
+    step8 = step7 + fsr_increment
+    step9 = step8 + fsr_increment
+
+    uart.write(f"STEP1:{step1}\n")
+
+def set_max_from_fsr():
+    global step1, step2, step3, step4, step5
+    global step6, step7, step8, step9, step10
+    global fsr_increment
+    start = time.monotonic()
+    max_fsr = 0
+    while time.monotonic() - start < SET_MAX_WINDOW:
+        max_fsr = max(max_fsr, get_voltage(fsr_in))
+        time.sleep(0.01)
+
+    step10 = int(max_fsr)
+    microcontroller.nvm[3] = (step10 >> 8) & 0xFF
+    microcontroller.nvm[4] = step10 & 0xFF
+
+    fsr_increment = (step10 - step1) / 9
+    step2 = step1 + fsr_increment
+    step3 = step2 + fsr_increment
+    step4 = step3 + fsr_increment
+    step5 = step4 + fsr_increment
+    step6 = step5 + fsr_increment
+    step7 = step6 + fsr_increment
+    step8 = step7 + fsr_increment
+    step9 = step8 + fsr_increment
+
+    uart.write(f"STEP10:{step10}\n")
 
 # -------------------------
 # MAIN LOOP
@@ -210,7 +262,16 @@ while True:
             time.sleep(0.05)
         ble.stop_advertising()
         print("Connected!")
-        time.sleep(0.1)  # allow notifications to be enabled
+        time.sleep(0.25)   # Allow browser to finish enabling notifications
+        
+        # AUTHORITATIVE SYNC ON CONNECT
+        uart.write("FSR ENABLED\n" if fsr_on else "FSR DISABLED\n")
+        uart.write("XANGLE ENABLED\n" if xangle_on else "XANGLE DISABLED\n")
+        # uart.write(f"STEP1:{step1}\n")
+        # uart.write(f"STEP10:{step10}\n")
+        # uart.write(f"HSTART:{hstart}\n")
+
+        time.sleep(0.1)
 
     while ble.connected:
         check_step()
@@ -218,7 +279,7 @@ while True:
             check_xangle()
 
         now = time.monotonic()
-        if now - last_transmission >= 0.02:
+        if not telemetry_paused and now - last_transmission >= 0.5:
             fsr_value = get_voltage(fsr_in)
             x, _, _ = sensor.acceleration
             uart.write(f"FSR:{fsr_value}\n")
@@ -229,29 +290,56 @@ while True:
         if uart.in_waiting:
             data = uart.read(uart.in_waiting)
             if data:
-                text = data.decode("utf-8")
-                lines = text.split("\n")
+                for raw in data.decode("utf-8").split("\n"):
+                    command = raw.strip().upper()
+                    if not command:
+                        continue
 
-            for raw in lines:
-                command = raw.strip().upper()
-                if not command:
-                    continue
+                    if command == "GET_FSR_STATE":
+                        uart.write("FSR ENABLED\n" if fsr_on else "FSR DISABLED\n")
 
-                if command == "GET_FSR_STATE":
-                    uart.write("FSR ENABLED\n" if fsr_on else "FSR DISABLED\n")
+                    elif command == "GET_XANGLE_STATE":
+                        uart.write("XANGLE ENABLED\n" if xangle_on else "XANGLE DISABLED\n")
 
-                elif command == "GET_XANGLE_STATE":
-                    uart.write("XANGLE ENABLED\n" if xangle_on else "XANGLE DISABLED\n")
+                    elif command == "TOGGLE_FSR":
+                        fsr_on = not fsr_on
+                        microcontroller.nvm[0] = 1 if fsr_on else 0
+                        uart.write("FSR ENABLED\n" if fsr_on else "FSR DISABLED\n")
 
-                elif command == "TOGGLE_FSR":
-                    fsr_on = not fsr_on
-                    microcontroller.nvm[0] = 1 if fsr_on else 0
-                    uart.write("FSR ENABLED\n" if fsr_on else "FSR DISABLED\n")
+                    elif command == "TOGGLE_XANGLE":
+                        xangle_on = not xangle_on
+                        microcontroller.nvm[14] = 1 if xangle_on else 0
+                        uart.write("XANGLE ENABLED\n" if xangle_on else "XANGLE DISABLED\n")
 
-                elif command == "TOGGLE_XANGLE":
-                    xangle_on = not xangle_on
-                    microcontroller.nvm[14] = 1 if xangle_on else 0
-                    uart.write("XANGLE ENABLED\n" if xangle_on else "XANGLE DISABLED\n")
+                    elif command == "GET_STEP1":
+                        uart.write(f"STEP1:{step1}\n")
 
+                    elif command == "GET_STEP10":
+                        uart.write(f"STEP10:{step10}\n")
+
+                    elif command == "GET_HSTART":
+                        uart.write(f"HSTART:{hstart}\n")
+
+                    elif command.startswith("HSTART:"):
+                        try:
+                            hstart = int(command.split(":")[1])
+                            microcontroller.nvm[18] = hstart
+                            uart.write(f"HSTART:{hstart}\n")
+                        except:
+                            uart.write("ERROR:HSTART\n")
+
+                    elif command == "SET_MIN":
+                        telemetry_paused = True
+                        try:
+                            set_min_from_fsr()
+                        finally:
+                            telemetry_paused = False
+
+                    elif command == "SET_MAX":
+                        telemetry_paused = True
+                        try:
+                            set_max_from_fsr()
+                        finally:
+                            telemetry_paused = False
 
         time.sleep(0.02)
